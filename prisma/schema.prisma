@@ -1,0 +1,384 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum Role {
+  ADMIN
+  GESTOR
+  COLABORADOR
+}
+
+enum ContentType {
+  VIDEO
+  PDF
+  QUIZ
+  OPEN_QUESTION
+  IMAGE_UPLOAD
+}
+
+enum RewardOrderStatus {
+  PENDING
+  APPROVED
+  DELIVERED
+  CANCELED
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model Tenant {
+  id        String  @id @default(uuid()) @db.Uuid
+  name      String
+  subdomain String  @unique
+  logoUrl   String?
+
+  // White-label settings (colors, fonts, etc.)
+  visualSettings Json? @default("{\"primary_color\": \"#3B82F6\", \"secondary_color\": \"#1E40AF\", \"font_family\": \"Inter\"}")
+
+  // BYOK (Bring Your Own Key) - Encrypted at rest
+  aiConfig Json? @default("{\"provider\": null, \"encrypted_token\": null}")
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users               User[]
+  trails              Trail[]
+  contents            Content[]
+  trailItems          TrailItem[]
+  gamificationLedgers GamificationLedger[]
+  rewards             Reward[]
+  rewardOrders        RewardOrder[]
+  trailItemProgresses TrailItemProgress[]
+  analyticsEvents     AnalyticsEvent[]
+  departments         Department[]
+  positions           Position[]
+  trailEnrollments    TrailEnrollment[]
+  categories          Category[]
+  certificates        Certificate[]
+
+  @@index([subdomain])
+}
+
+model User {
+  id           String  @id @default(uuid()) @db.Uuid
+  tenantId     String  @db.Uuid
+  name         String
+  email        String
+  passwordHash String
+  role         Role    @default(COLABORADOR)
+  departmentId String? @db.Uuid
+  positionId   String? @db.Uuid
+
+  // Flexible profile data (department, position, preferences)
+  profileData Json? @default("{}")
+
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  department          Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  position            Position?            @relation(fields: [positionId], references: [id], onDelete: SetNull)
+  gamificationLedgers GamificationLedger[]
+  rewardOrders        RewardOrder[]
+  trailItemProgresses TrailItemProgress[]
+  analyticsEvents     AnalyticsEvent[]
+  enrollments         TrailEnrollment[]    @relation("UserEnrollments")
+  assignedEnrollments TrailEnrollment[]    @relation("AssignedEnrollments")
+  certificates        Certificate[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+model Content {
+  id         String      @id @default(uuid()) @db.Uuid
+  tenantId   String      @db.Uuid
+  title      String
+  type       ContentType
+  categoryId String?     @db.Uuid
+
+  // Polymorphic payload for dynamic metadata
+  // Video: {"url": "...", "duration": 120}
+  // Quiz: {"questions": [{"q": "...", "options": [...], "correct": 0}]}
+  payload Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  trailItems TrailItem[]
+
+  @@index([tenantId])
+}
+
+model Trail {
+  id            String  @id @default(uuid()) @db.Uuid
+  tenantId      String  @db.Uuid
+  title         String
+  description   String?
+  categoryId    String? @db.Uuid
+  workloadHours Int     @default(0)
+
+  // Graph/Storytelling settings at the trail level
+  settings Json? @default("{\"tier\": \"basic\"}")
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  trailItems      TrailItem[]
+  targetPositions Position[]
+  enrollments     TrailEnrollment[]
+  certificates    Certificate[]
+
+  @@index([tenantId])
+}
+
+model TrailItem {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  trailId   String @db.Uuid
+  contentId String @db.Uuid
+
+  // Ordering and Graph Dependencies
+  order        Int    @default(0)
+  dependencies Json?  @default("[]") // Array of TrailItem IDs that must be completed first
+  tier         String @default("basic")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trail      Trail               @relation(fields: [trailId], references: [id], onDelete: Cascade)
+  content    Content             @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  progresses TrailItemProgress[]
+
+  @@index([tenantId])
+  @@index([trailId])
+  @@index([contentId])
+}
+
+model GamificationLedger {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  userId   String @db.Uuid
+
+  amount Int // Positive for credit, negative for debit
+  type   String // completion, reward_redemption, bonus, adjustment
+  reason String?
+
+  // Contextual metadata (e.g., {"content_id": "...", "quiz_score": 90})
+  metadata Json? @default("{}")
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model Reward {
+  id            String  @id @default(uuid()) @db.Uuid
+  tenantId      String  @db.Uuid
+  title         String
+  description   String?
+  costPoints    Int
+  stockQuantity Int     @default(0)
+  imageUrl      String?
+  active        Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rewardOrders RewardOrder[]
+
+  @@index([tenantId])
+}
+
+model RewardOrder {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  userId   String @db.Uuid
+  rewardId String @db.Uuid
+
+  status   RewardOrderStatus @default(PENDING)
+  metadata Json?             @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward Reward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([userId])
+}
+
+model TrailItemProgress {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @db.Uuid
+  userId      String @db.Uuid
+  trailItemId String @db.Uuid
+
+  status   ProgressStatus @default(NOT_STARTED)
+  score    Float?
+  metadata Json?          @default("{}")
+
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trailItem TrailItem @relation(fields: [trailItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trailItemId])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([trailItemId])
+}
+
+model AnalyticsEvent {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  userId   String @db.Uuid
+
+  eventType String
+  entityId  String?
+  metadata  Json?   @default("{}")
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([eventType])
+}
+
+model Department {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@index([tenantId])
+}
+
+model Position {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  User[]
+  trails Trail[] // Many-to-many with Trail
+
+  @@index([tenantId])
+}
+
+model TrailEnrollment {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  userId   String @db.Uuid
+  trailId  String @db.Uuid
+
+  status          ProgressStatus @default(NOT_STARTED)
+  progressPercent Float          @default(0)
+  assignedById    String?        @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User   @relation("UserEnrollments", fields: [userId], references: [id], onDelete: Cascade)
+  trail      Trail  @relation(fields: [trailId], references: [id], onDelete: Cascade)
+  assignedBy User?  @relation("AssignedEnrollments", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, trailId])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([trailId])
+}
+
+model Category {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  trails   Trail[]
+  contents Content[]
+
+  @@index([tenantId])
+}
+
+model Certificate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  userId   String @db.Uuid
+  trailId  String @db.Uuid
+  code     String @unique
+
+  issuedAt DateTime @default(now())
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trail  Trail  @relation(fields: [trailId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([trailId])
+}
