@@ -36,7 +36,7 @@ export const trailController = {
       const trail = await prisma.trail.findUnique({
         where: { id, tenantId },
         include: {
-          itemsAdvanced: {
+          trailItems: {
             orderBy: { order: 'asc' },
             include: { content: true } // Assuming trail item uses content
           },

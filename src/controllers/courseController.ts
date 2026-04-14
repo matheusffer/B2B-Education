@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { enqueueMetadataExtraction } from '../services/metadataQueue';
 
 const prisma = new PrismaClient();
 
@@ -46,10 +47,14 @@ export const courseController = {
           payload: {
             description,
             link,
-            estimateTime
+            estimateTime: estimateTime || 0 // Inicializa com 0 para a fila processar
           }
         }
       });
+
+      // Enfileira o processamento assíncrono (In-Memory Queue)
+      enqueueMetadataExtraction(course.id, tenantId, link, 'VIDEO');
+
       res.status(201).json({ success: true, course });
     } catch (error) {
       console.error('Error creating course:', error);

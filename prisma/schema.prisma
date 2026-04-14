@@ -92,7 +92,7 @@ model Tenant {
   trailCompetencies    TrailCompetency[]
   competencyInterests  UserCompetencyInterest[]
   trailModules         TrailModule[]
-  trailItemsAdvanced   TrailItemAdvanced[]
+
   trailRecommendations TrailRecommendation[]
   sessionTrackings     SessionTracking[]
   userStudyStats       UserStudyStats[]
@@ -157,7 +157,7 @@ model Content {
 
   // Polymorphic payload for dynamic metadata
   // Video: {"url": "...", "duration": 120}
-  // Quiz: {"questions": [{"q": "...", "options": [...], "correct": 0}]}
+  // PDF: {"url": "...", "pages": 15}
   payload Json @default("{}")
 
   createdAt DateTime @default(now())
@@ -172,7 +172,7 @@ model Content {
   views              ContentView[]
   favorites          ContentFavorite[]
   ratings            ContentRating[]
-  trailItemsAdvanced TrailItemAdvanced[]
+
 
   @@index([tenantId])
 }
@@ -203,38 +203,13 @@ model Trail {
   badgeTrails     BadgeTrail[]
   competencies    TrailCompetency[]
   modules         TrailModule[]
-  itemsAdvanced   TrailItemAdvanced[]
+
   recommendations TrailRecommendation[]
 
   @@index([tenantId])
 }
 
-model TrailItem {
-  id        String @id @default(uuid()) @db.Uuid
-  tenantId  String @db.Uuid
-  trailId   String @db.Uuid
-  contentId String @db.Uuid
 
-  // Ordering and Graph Dependencies
-  order        Int    @default(0)
-  dependencies Json?  @default("[]") // Array of TrailItem IDs that must be completed first
-  tier         String @default("basic")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  trail      Trail               @relation(fields: [trailId], references: [id], onDelete: Cascade)
-  content    Content             @relation(fields: [contentId], references: [id], onDelete: Cascade)
-  progresses TrailItemProgress[]
-
-  quizAttempts QuizAttempt[]
-
-  @@index([tenantId])
-  @@index([trailId])
-  @@index([contentId])
-}
 
 model GamificationLedger {
   id       String @id @default(uuid()) @db.Uuid
@@ -764,14 +739,14 @@ model TrailModule {
 
   tenant Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   trail  Trail               @relation(fields: [trailId], references: [id], onDelete: Cascade)
-  items  TrailItemAdvanced[]
+  items  TrailItem[]
 
   @@index([tenantId])
   @@index([trailId])
 }
 
 // ─── Advanced Trail Items (Dynamic Content) ────────────────────────────────
-model TrailItemAdvanced {
+model TrailItem {
   id                 String   @id @default(uuid()) @db.Uuid
   tenantId           String   @db.Uuid
   trailId            String   @db.Uuid
@@ -796,6 +771,8 @@ model TrailItemAdvanced {
   trail   Trail        @relation(fields: [trailId], references: [id], onDelete: Cascade)
   module  TrailModule? @relation(fields: [moduleId], references: [id], onDelete: SetNull)
   content Content?     @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  progresses TrailItemProgress[]
+  quizAttempts QuizAttempt[]
 
   @@index([tenantId])
   @@index([trailId])
