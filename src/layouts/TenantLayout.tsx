@@ -1,10 +1,11 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTenant } from '../contexts/TenantContext';
-import { Loader2, Menu, Bell, User, BookOpen, LayoutDashboard, GraduationCap } from 'lucide-react';
+import { Loader2, Menu, Bell, User, BookOpen, LayoutDashboard, GraduationCap, Settings } from 'lucide-react';
 
 export default function TenantLayout() {
   const { tenant, loading, error } = useTenant();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -37,6 +38,8 @@ export default function TenantLayout() {
     fontFamily: fontFamily,
   } as React.CSSProperties;
 
+  const isActive = (path: string) => location.pathname === path;
+
   return (
     <div style={customStyles} className="min-h-screen flex bg-gray-50 text-gray-900 font-sans">
       {/* Sidebar Lateral */}
@@ -50,18 +53,48 @@ export default function TenantLayout() {
         </div>
         
         <nav className="flex-1 py-6 px-3 space-y-2">
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/10 font-medium transition-colors">
+          <Link 
+            to="/" 
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${isActive('/') ? 'bg-white/10' : 'hover:bg-white/5'}`}
+          >
             <LayoutDashboard className="w-5 h-5 opacity-80" />
             Dashboard
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 font-medium transition-colors">
+          </Link>
+          <Link 
+            to="/player" 
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${isActive('/player') ? 'bg-white/10' : 'hover:bg-white/5'}`}
+          >
             <BookOpen className="w-5 h-5 opacity-80" />
-            Cursos
-          </a>
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 font-medium transition-colors">
+            Player de Conteúdo
+          </Link>
+          <Link 
+            to="/conhecimento" 
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${isActive('/conhecimento') ? 'bg-white/10' : 'hover:bg-white/5'}`}
+          >
+            <BookOpen className="w-5 h-5 opacity-80" />
+            Base de Conhecimento
+          </Link>
+          <Link 
+            to="/trilhas" 
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${isActive('/trilhas') ? 'bg-white/10' : 'hover:bg-white/5'}`}
+          >
             <GraduationCap className="w-5 h-5 opacity-80" />
             Trilhas
-          </a>
+          </Link>
+          <Link 
+            to="/admin" 
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${isActive('/admin') ? 'bg-white/10' : 'hover:bg-white/5'}`}
+          >
+            <Settings className="w-5 h-5 opacity-80" />
+            Administração
+          </Link>
+          <Link 
+            to="/configuracoes" 
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${isActive('/configuracoes') ? 'bg-white/10' : 'hover:bg-white/5'}`}
+          >
+            <Settings className="w-5 h-5 opacity-80" />
+            Configurações
+          </Link>
         </nav>
       </aside>
 
