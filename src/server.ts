@@ -37,6 +37,10 @@ async function startServer() {
     });
   });
 
+  // API de aprendizagem / trilhas (migrado do knowledge-platform)
+  const { knowledgeRouter } = require('./routers/knowledgeRouter');
+  apiRouter.use('/learning', knowledgeRouter);
+
   // Monta o router da API no prefixo /api
   app.use('/api', apiRouter);
 
